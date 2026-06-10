@@ -41,7 +41,7 @@ Aplikasi Dashboard Pertanian Pintar berbasis Full-Stack (React, Firebase, & Capa
 - **Dual-Model AI Reliability:** Sistem *failover* otomatis antara Gemini dan DeepSeek. Jika satu layanan down, AI lain otomatis mengambil alih agar aplikasi tetap berjalan 24/7.
 
 ## 📋 Fitur Utama
-- **Dashboard Nutrisi & IoT:** Monitoring status tanah dan tanaman modern.
+- **Dashboard Beranda:** Ringkasan cuaca real-time dan pintasan ke deteksi hama, pasar, dan prakiraan cuaca.
 - **Analisis Hama Vision AI:** Identifikasi hama melalui unggahan foto/kamera dengan akurasi tinggi.
 - **Prakiraan Cuaca Cerdas:** Rekomendasi bertani (kapan harus memupuk/menyiram) berdasarkan data cuaca aktual.
 - **Update Harga Pangan:** Pantauan harga beras, cabai, bawang, dll. yang diverifikasi langsung dari sumber berita terkini.
