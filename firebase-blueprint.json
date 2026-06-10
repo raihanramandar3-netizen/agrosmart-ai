@@ -1,0 +1,89 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "User profile with role management",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "MarketPrice": {
+      "title": "Market Price Record",
+      "description": "Historical market price data for commodities",
+      "type": "object",
+      "properties": {
+        "commodity": { "type": "string" },
+        "price": { "type": "number" },
+        "unit": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "province": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["commodity", "price", "unit", "date", "province"]
+    },
+    "PestLog": {
+      "title": "Pest Detection Log",
+      "description": "History of pest detection scans",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "pestName": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Rendah", "Sedang", "Tinggi"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["userId", "pestName", "severity", "timestamp"]
+    },
+    "SystemConfig": {
+      "title": "System Configuration",
+      "description": "Global settings and API keys",
+      "type": "object",
+      "properties": {
+        "gemini_key": { "type": "string" },
+        "deepseek_key": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string" }
+      }
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "Individual chat message in a conversation",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "model"] },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "marketPrices/{priceId}": {
+      "schema": "MarketPrice",
+      "description": "Market price historical data"
+    },
+    "pestLogs/{logId}": {
+      "schema": "PestLog",
+      "description": "History of detected pests"
+    },
+    "system_config/{configId}": {
+      "schema": "SystemConfig",
+      "description": "Global system configurations"
+    },
+    "chats/{chatId}": {
+      "schema": "ChatMessage",
+      "description": "User chat history with AI"
+    }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PakarTani</string>
+    <string name="title_activity_main">PakarTani</string>
+    <string name="package_name">com.pakar.tani</string>
+    <string name="custom_url_scheme">com.pakar.tani</string>
+</resources>

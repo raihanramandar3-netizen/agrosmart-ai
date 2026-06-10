@@ -1,0 +1,10 @@
+{
+  "name": "to apk: AgroSmart AI PRO",
+  "description": "Platform Pertanian Presisi Masa Depan. Fitur unggulan: Deteksi Hama AI (Computer Vision), Analisis Pasar Pangan Real-time, Asisten Konsultasi Budidaya (LLM), dan Protokol Pertanian Berkelanjutan.",
+  "version": "1.0.0",
+  "author": "AgroSmart Team",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

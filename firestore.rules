@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==========================================
+    // GLOBAL SAFETY NET
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // GLOBAL HELPERS
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Auth tokens never contain roles. Must check database.
+    // In this app, admins are defined in the /users/ collection by the role field.
+    // We add a specific check for a "root" admin email as a fallback/bootstrap.
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email.toLowerCase() == 'raihanramanda644@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // ==========================================
+    // VALIDATION BLUEPRINTS
+    // ==========================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.keys().size() >= 3 && data.keys().size() <= 10 &&
+             data.uid is string && data.uid.size() <= 128 &&
+             data.email is string && data.email.size() <= 128 &&
+             data.role in ['admin', 'user'] &&
+             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 128);
+    }
+
+    function isValidPestLog(data) {
+      return data.keys().hasAll(['userId', 'pestName', 'severity', 'timestamp']) &&
+             data.keys().size() >= 4 && data.keys().size() <= 10 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.pestName is string && data.pestName.size() <= 200 &&
+             data.severity in ['Rendah', 'Sedang', 'Tinggi'] &&
+             data.timestamp is timestamp &&
+             (data.get('userEmail', '') is string && data.get('userEmail', '').size() <= 128) &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 1500000);
+    }
+
+    function isValidSystemConfig(data) {
+      return data.keys().size() <= 10 &&
+             (data.get('gemini_key', '') is string && data.get('gemini_key', '').size() <= 200) &&
+             (data.get('deepseek_key', '') is string && data.get('deepseek_key', '').size() <= 200) &&
+             (data.get('weather_key', '') is string && data.get('weather_key', '').size() <= 200);
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['userId', 'role', 'text', 'timestamp']) &&
+             data.keys().size() == 4 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.role in ['user', 'model'] &&
+             data.text is string && data.text.size() <= 10000 &&
+             data.timestamp is timestamp;
+    }
+
+    // ==========================================
+    // RESOURCE MATCH BLOCKS
+    // ==========================================
+
+    // --- Users ---
+    // Global Config / Settings
+    match /system_config/api_keys {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      
+      allow create: if isOwner(userId) && 
+                    isValidId(userId) &&
+                    isValidUser(incoming()) &&
+                    (
+                      (request.auth.token.email == 'raihanramanda644@gmail.com' && incoming().role == 'admin') ||
+                      (incoming().role == 'user')
+                    ) &&
+                    incoming().uid == userId;
+
+      allow update: if (isOwner(userId) && isValidUser(incoming()) && (
+        // Action: Profile Update (Cannot change role or uid)
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoURL']) &&
+        incoming().role == existing().role &&
+        incoming().uid == existing().uid
+      )) || isAdmin();
+    }
+
+    // --- Pest Logs ---
+    match /pestLogs/{logId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(logId) &&
+                    isValidPestLog(incoming()) &&
+                    incoming().userId == request.auth.uid &&
+                    incoming().timestamp == request.time;
+
+      allow update: if isAdmin();
+      allow delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // --- System Config ---
+    match /system_config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() && 
+                   isValidId(configId) &&
+                   isValidSystemConfig(incoming());
+    }
+
+    // --- Market Prices ---
+    match /marketPrices/{priceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // --- Chat History ---
+    match /chats/{chatId} {
+      allow get: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      allow create: if isSignedIn() && 
+                    isValidId(chatId) &&
+                    isValidChatMessage(incoming()) &&
+                    incoming().userId == request.auth.uid &&
+                    incoming().timestamp == request.time;
+      
+      allow delete: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow update: if false; // Messages are immutable
+    }
+  }
+}

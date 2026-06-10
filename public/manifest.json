@@ -1,0 +1,21 @@
+{
+  "name": "AgroSmart AI",
+  "short_name": "AgroSmart",
+  "description": "Solusi Pertanian Cerdas Berbasis AI",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#10b981",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=10b981",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/initials/svg?seed=AS&backgroundColor=10b981",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
