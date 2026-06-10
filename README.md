@@ -22,7 +22,7 @@ Aplikasi Dashboard Pertanian Pintar berbasis Full-Stack (React, Firebase, & Capa
 - **Backend/Auth:** Firebase Auth (Google Login) + Firestore
 - **AI:** Google Gemini 2.5 Flash (primary) + DeepSeek (fallback)
 - **Cuaca:** OpenWeatherMap API + wttr.in fallback
-- **Lainnya:** jsPDF, html2canvas, Recharts
+- **Lainnya:** jsPDF, html2canvas
 
 ### Fitur yang Bisa Didemo
 
@@ -50,17 +50,49 @@ Aplikasi Dashboard Pertanian Pintar berbasis Full-Stack (React, Firebase, & Capa
 
 ---
 
+## ⚡ Quick Start (Clone → Jalan dalam 3 Menit)
+
+> **Untuk dosen / AI agent:** Ikuti langkah ini dulu sebelum baca bagian lain.
+
+```bash
+git clone https://github.com/raihanramandar3-netizen/agrosmart-ai.git
+cd agrosmart-ai
+cp .env.example .env        # Windows: copy .env.example .env
+npm install
+npm run dev
+```
+
+Buka **http://localhost:3000** → klik **"Masuk sebagai Tamu (Mode Demo)"** untuk demo tanpa login.
+
+| Yang sudah tersedia di repo | Perlu diisi manual |
+|-----------------------------|-------------------|
+| `firebase-applet-config.json` | API key di `.env` (lihat `.env.example`) |
+| `google-services.json` | — |
+| `firestore.rules` | — |
+| Folder `android/` (sudah ada) | — |
+
+**Minimal `.env` untuk fitur AI:**
+```
+GEMINI_API_KEY=your_key_here
+VITE_DEEPSEEK_API_KEY=your_key_here   # opsional (fallback)
+VITE_WEATHER_API_KEY=your_key_here    # opsional (ada fallback wttr.in)
+```
+
+Tanpa `.env`, UI tetap bisa dibuka via **Mode Demo**, tapi fitur AI butuh minimal `GEMINI_API_KEY`.
+
+---
+
 ## 🛠️ Prasyarat (Persiapan Sebelum Run)
-1. **Node.js (LTS):** [Download di sini](https://nodejs.org/).
-2. **Android Studio:** (Hanya jika ingin build APK).
-3. **Firebase Account:** Gratis untuk tingkat awal.
+1. **Node.js 20+ (LTS):** [Download di sini](https://nodejs.org/).
+2. **Android Studio + JDK 17:** Hanya jika ingin build APK sendiri.
+3. **Koneksi internet:** Wajib untuk fitur AI & cuaca.
 
 ---
 
 ## 🚀 Cara Menjalankan di Lokal (Development)
 
-1.  **Extract File:** Download dan extract file kode ini.
-2.  **Setup Firebase (Penting & Mudah):** 
+1.  **Clone repo** (atau extract ZIP dari GitHub).
+2.  **Setup Firebase (opsional jika pakai project yang sudah ada):**
     Anda **TIDAK PERLU** membuat tabel/koleksi satu-satu. Kode ini otomatis membuatnya saat dijalankan. Anda hanya perlu:
     - **Buat Project:** Masuk ke [Firebase Console](https://console.firebase.google.com/), buat project baru.
     - **Aktifkan Firestore:** Klik 'Firestore Database' > 'Create Database'.
@@ -91,35 +123,32 @@ Aplikasi ini sudah diprogram untuk mengambil API Key (**Gemini, DeepSeek, & Open
 
 ---
 
-## 📱 Cara Konversi ke Aplikasi Android (.apk) menggunakan Capacitor
+## 📱 Build Aplikasi Android (.apk)
 
-Ikuti langkah-langkah ini secara berurutan agar aplikasi tidak bug atau force close:
+> **Catatan:** Folder `android/` sudah ada di repo. **Jangan** jalankan `cap init` atau `cap add android` lagi.
 
-### 1. Inisialisasi Capacitor
-```bash
-npm install @capacitor/core @capacitor/cli @capacitor/android
-# PENTING: Pilih Package ID sekarang (Contoh: com.pakar.tani). 
-# Anda TIDAK PERLU mengubah kode di folder /src.
-# Cukup pastikan ID ini sama dengan yang didaftarkan di Firebase Console.
-npx cap init PakarTani com.pakar.tani
-```
-
-### 2. Build Aplikasi Web
+### 1. Build & Sync
 ```bash
 npm run build
+npx cap sync android
 ```
 
-### 3. Tambahkan Platform Android
+### 2. Build APK (pilih salah satu)
+
+**Via Gradle (tanpa Android Studio):**
 ```bash
-npx cap add android
+cd android
+./gradlew assembleDebug        # Windows: gradlew.bat assembleDebug
 ```
+Output: `android/app/build/outputs/apk/debug/app-debug.apk`
 
-### 4. Sinkronisasi Kode ke Folder Android
+**Via Android Studio:**
 ```bash
-npx cap copy
+npx cap open android
 ```
+Lalu **Build → Build APK(s)**.
 
-### 5. Konfigurasi Penting (Agar tidak Force Close/Bug):
+### 3. Konfigurasi Penting (Agar tidak Force Close/Bug):
 Agar fitur login, kamera, dan GPS berjalan lancar di APK:
 
 - **1. Perbaiki Geolocation & Camera (Native Pop-up):**
@@ -134,25 +163,17 @@ Agar fitur login, kamera, dan GPS berjalan lancar di APK:
   <uses-feature android:name="android.hardware.location.gps" />
   ```
 
-- **2. Perbaiki Google Login (Anti "Layar Putih"):** 
-  Di mobile, login otomatis menggunakan mode **Redirect**.
-  1. Daftar SHA-1 Anda di Firebase Console (Settings > Project Settings).
-  2. Tambahkan Authorized Domains: Di Firebase Auth > Settings > Authorized Domains, pastikan `localhost` ada di daftar.
-  3. Gunakan Deep Linking jika ingin redirect kembali ke app secara instan (konfigurasi di `capacitor.config.ts`).
+- **2. Google Login di Android:** Menggunakan `@capacitor-firebase/authentication` (native).
+  1. Daftar SHA-1 debug keystore di Firebase Console → Project Settings.
+  2. Pastikan `google-services.json` package name = `com.pakar.tani`.
+  3. Untuk demo tanpa login: gunakan **Mode Demo** di layar awal.
 
 - **3. Perbaiki Export PDF (Native Storage):**
   Di mobile, PDF tidak langsung "terdownload" seperti browser. Kode baru akan menyimpan file ke folder **Documents** HP Anda. Jika ingin tombol download lebih responsif, pastikan izin Storage sudah diberikan.
 
 - **4. Penanganan Cleartext:** Jika API Cuaca/Market tidak muncul data, tambahkan `android:usesCleartextTraffic="true"` pada tag `<application>` di AndroidManifest.xml.
 
-### 6. Jalankan di Android Studio
-```bash
-npx cap open android
-```
-- Di Android Studio, klik **Build > Build Bundle(s) / APK(s) > Build APK(s)** untuk mendapatkan file `.apk`.
-- Output APK debug: `android/app/build/outputs/apk/debug/app-debug.apk`
-
-### 7. Upload APK ke GitHub Releases (Untuk Dosen)
+### 4. Upload APK ke GitHub Releases (Untuk Dosen)
 ```bash
 # Setelah APK jadi, buat release di GitHub:
 # Repo → Releases → Create new release → upload app-debug.apk
