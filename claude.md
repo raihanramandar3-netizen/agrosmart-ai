@@ -6,7 +6,7 @@
 
 Tujuan utama proyek ini adalah menyediakan solusi satu atap (one-stop solution) untuk:
 
-1. **Analisis Hama & Penyakit:** Menggunakan Visi Komputer (Gemini Flash) untuk mendeteksi masalah tanaman lewat kamera.
+1. **Analisis Hama & Penyakit:** Menggunakan Visi Komputer (Gemini 2.5 Flash) untuk mendeteksi masalah tanaman lewat kamera.
 2. **Prakiraan Cuaca Terverifikasi:** Menggunakan metode RAG (Retrieval-Augmented Generation) untuk validasi cuaca real-time.
 3. **Monitor Harga Pasar (RAG):** Mengutip data harga pangan langsung dari sumber resmi (Kemendag/Bapanas) via Google Search.
 4. **Manajemen Lahan:** Monitoring parameter kesehatan tanaman secara visual.
@@ -71,7 +71,7 @@ Aplikasi ini menggunakan **Modern Stack** tercanggih saat ini:
 
 |**Firestore**| Cloud Database | Database NoSQL real-time untuk sinkronisasi data antar HP. |
 
-|**Gemini 1.5 Flash**| Primary AI | Model AI tercepat Google untuk analisis gambar dan pencarian Web (RAG). |
+|**Gemini 2.5 Flash**| Primary AI | Model AI utama Google untuk analisis gambar, chat, dan pencarian Web (RAG). |
 
 |**DeepSeek**| Fallback AI | Backup pintar jika layanan utama mengalami gangguan atau limit. |
 
@@ -104,7 +104,7 @@ Berikut adalah panduan untuk menemukan logika dari fitur-fitur utama di dalam ko
 
 |**Pencarian Harga Pasar (RAG)**|`src/services/gemini.ts`|`getMarketPrices` (Grounding Search + JSON Parsing) |
 
-|**Analisis Hama (Vision)**|`src/services/gemini.ts`|`analyzePestImage` (Gemini 1.5 Flash Vision) |
+|**Analisis Hama (Vision)**|`src/services/gemini.ts`|`analyzePestImage` (Gemini 2.5 Flash Vision, fallback multi-model) |
 
 |**Rekomendasi Cuaca (RAG)**|`src/services/gemini.ts`|`getWeatherRecommendations` (Data Weather + Grounding) |
 
