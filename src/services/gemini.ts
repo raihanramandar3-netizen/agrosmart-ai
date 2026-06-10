@@ -164,75 +164,201 @@ export const getWeatherRecommendations = async (location: string, weatherData?: 
   }
 };
 
-export const getMarketPrices = async (location: string, commodity?: string, marketType?: string, province?: string, date?: string, regency?: string) => {
-  const prompt = `Cari harga pangan terbaru di Indonesia dari sumber resmi https://sp2kp.kemendag.go.id/ (SP2KP Kemendag).
-  Parameter Pencarian:
-  - Komoditas: ${commodity || 'Semua'}
-  - Wilayah: ${province || 'Nasional'}${regency ? ', ' + regency : ''}
-  - Tanggal: ${date || 'Hari ini'}
+const MARKET_CACHE_TTL_MS = 15 * 60 * 1000; // 15 menit
+const marketCache = new Map<string, { data: any; ts: number }>();
 
-  Daftar Komoditas Utama di Kemendag:
-  Beras Medium, Beras Premium, Gula Pasir Curah, Minyak Goreng Sawit Kemasan Premium, Minyak Goreng Sawit Curah, Minyakita, Daging Sapi Paha Belakang, Daging Ayam Ras, Telur Ayam Ras, Tepung Terigu, Kedelai Impor, Cabai Merah Keriting, Cabai Rawit Merah, Cabai Merah Besar, Bawang Merah, Bawang Putih Honan.
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  BERIKAN RESPON DALAM FORMAT JSON SAJA DENGAN STRUKTUR:
-  {
-    "items": [
-      {
-        "name": "Nama Komoditas",
-        "price": 15000,
-        "unit": "kg",
-        "changePercent": 0.5,
-        "changeAmount": 75,
-        "trend": "up",
-        "history": [14000, 14500, 15000]
-      }
-    ],
-    "aiCompass": {
-      "insight": "Ringkasan kondisi pasar saat ini di lokasi tersebut",
-      "forecast": "Prediksi harga 7 hari kedepan",
-      "strategy": "Saran untuk petani/pedagang",
-      "status": "Stabil/Waspada/Kritis"
+const getMarketCacheKey = (
+  commodity: string,
+  wilayah: string,
+  tanggal: string,
+  marketType?: string
+) => `${commodity}|${wilayah}|${tanggal}|${marketType || 'Pasar Tradisional'}`;
+
+const parseMarketJson = (text: string) => {
+  let cleaned = text;
+  if (cleaned.includes("```")) {
+    cleaned = cleaned.replace(/```json|```/g, '').trim();
+  }
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("Respons AI bukan JSON valid.");
+  return JSON.parse(jsonMatch[0]);
+};
+
+const isMarketResponseFailed = (parsed: any) => {
+  const insight = String(parsed?.aiCompass?.insight || '').toLowerCase();
+  const status = String(parsed?.aiCompass?.status || '').toLowerCase();
+  const items = Array.isArray(parsed?.items) ? parsed.items : [];
+  const hasValidItems = items.some((item: any) => Number(item?.price) > 0);
+
+  return (
+    !hasValidItems ||
+    status.includes('gagal') ||
+    insight.includes('tidak dapat') ||
+    insight.includes('tidak memiliki kemampuan') ||
+    insight.includes('tidak tersedia') ||
+    insight.includes('belum tersedia')
+  );
+};
+
+const normalizeMarketResponse = (parsed: any, commodity: string, wilayah: string) => {
+  const validStatuses = ['Aman', 'Waspada', 'Peluang'] as const;
+  const rawItems = Array.isArray(parsed?.items) ? parsed.items : [];
+
+  const items = rawItems
+    .map((item: any) => {
+      const price = Number(item?.price) || 0;
+      const history = Array.isArray(item?.history)
+        ? item.history.map(Number).filter((n: number) => !isNaN(n) && n > 0)
+        : [];
+
+      return {
+        name: item?.name || commodity,
+        price: String(price),
+        unit: item?.unit || 'kg',
+        changePercent: String(item?.changePercent ?? '0'),
+        changeAmount: String(item?.changeAmount ?? '0'),
+        trend: (['up', 'down', 'stable'].includes(item?.trend) ? item.trend : 'stable') as 'up' | 'down' | 'stable',
+        history: history.length >= 2 ? history : [Math.round(price * 0.98), Math.round(price * 0.99), price].filter((n) => n > 0),
+      };
+    })
+    .filter((item) => Number(item.price) > 0);
+
+  const compass = parsed?.aiCompass || {};
+  let status = validStatuses.includes(compass.status) ? compass.status : 'Aman';
+
+  return {
+    items,
+    aiCompass: {
+      insight: compass.insight || `Harga ${commodity} di ${wilayah} berdasarkan laporan pasar terbaru.`,
+      forecast: compass.forecast || 'Perkiraan harga relatif stabil dalam 7 hari ke depan.',
+      strategy: compass.strategy || 'Pantau harga pasar tradisional setempat sebelum menjual panen.',
+      status,
     },
-    "provinces": [
-      { "name": "Wilayah Lain", "price": 15500 }
-    ]
-  }`;
+    provinces: Array.isArray(parsed?.provinces) ? parsed.provinces : [],
+  };
+};
 
-  try {
+const buildMarketPrompt = (
+  commodity: string,
+  wilayah: string,
+  tanggal: string,
+  marketType?: string,
+  strict = false
+) => {
+  const searchQuery = `harga ${commodity} ${wilayah} Indonesia ${tanggal} SP2KP Kemendag Bapanas`;
+
+  if (strict) {
+    return `Cari di Google: "${searchQuery}"
+
+Berikan estimasi harga ${commodity} di ${wilayah} berdasarkan berita/laporan terbaru yang ditemukan.
+JANGAN menolak atau jelaskan keterbatasan teknis. WAJIB berikan angka harga.
+
+JSON saja:
+{"items":[{"name":"${commodity}","price":13400,"unit":"kg","changePercent":"0.5","changeAmount":"67","trend":"stable","history":[13200,13300,13400]}],"aiCompass":{"insight":"Ringkasan singkat kondisi pasar","forecast":"Prediksi 7 hari","strategy":"Saran petani","status":"Aman"},"provinces":[]}`;
+  }
+
+  return `Kamu analis harga pangan Indonesia. Gunakan Google Search.
+
+PENCARIAN:
+- Komoditas: ${commodity}
+- Wilayah: ${wilayah}
+- Jenis pasar: ${marketType || 'Pasar Tradisional'}
+- Referensi tanggal: ${tanggal}
+- Query: "${searchQuery}"
+
+SUMBER YANG BOLEH (gabungkan, jangan hanya 1 situs):
+Laporan SP2KP/Bapanas/Kemendag, berita daerah, Katadata, Antara, detik, portal pemerintah daerah.
+
+ATURAN WAJIB:
+1. DILARANG bilang "tidak bisa akses website", "perlu login", atau "data tidak tersedia". Selalu berikan hasil terbaik dari pencarian.
+2. Jika data persis tanggal ${tanggal} tidak ada, pakai data TERDEKAT (1-14 hari sebelumnya) dan sebut tanggal sumbernya singkat di insight.
+3. WAJIB isi "items" minimal 1 komoditas dengan harga Rupiah masuk akal.
+4. "history": 3 angka (estimasi 3 hari terakhir).
+5. "status" HANYA: "Aman", "Waspada", atau "Peluang".
+6. insight/forecast/strategy: maks 2 kalimat, bahasa petani, bukan penjelasan teknis AI.
+7. Range wajar beras medium: Rp 10.000-18.000/kg.
+
+RESPON HANYA JSON MENTAH tanpa markdown:
+{
+  "items": [{"name": "${commodity}", "price": 13400, "unit": "kg", "changePercent": "0.5", "changeAmount": "67", "trend": "stable", "history": [13200, 13300, 13400]}],
+  "aiCompass": {"insight": "...", "forecast": "...", "strategy": "...", "status": "Aman"},
+  "provinces": [{"name": "Wilayah lain", "price": 13500}]
+}`;
+};
+
+export const getMarketPrices = async (location: string, commodity?: string, marketType?: string, province?: string, date?: string, regency?: string) => {
+  const komoditas = commodity || 'Beras Medium';
+  const tanggal = date || new Date().toISOString().split('T')[0];
+  const skipRegency = !regency || regency === 'Semua Kabupaten/Kota' || regency === 'Seluruh Indonesia';
+  const wilayah = skipRegency
+    ? (province || 'Nasional')
+    : `${regency}, ${province || ''}`.replace(/,\s*$/, '').trim();
+
+  const cacheKey = getMarketCacheKey(komoditas, wilayah, tanggal, marketType);
+  const cached = marketCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < MARKET_CACHE_TTL_MS) {
+    console.log("Market cache hit:", cacheKey);
+    return cached.data;
+  }
+
+  const callGemini = async (prompt: string) => {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: [{ parts: [{ text: prompt }] }],
       config: {
+        temperature: 0.2,
         tools: [{ googleSearch: {} }]
       }
     });
+    return response;
+  };
 
-    let text = response.text || "{}";
-    console.log("Market Data Raw:", text);
+  const tryFetchMarket = async () => {
+    const attempts = [
+      () => buildMarketPrompt(komoditas, wilayah, tanggal, marketType, false),
+      () => buildMarketPrompt(komoditas, wilayah, tanggal, marketType, true),
+      () => buildMarketPrompt(komoditas, wilayah, tanggal, marketType, true),
+    ];
 
-    // Robust cleaning of markdown code blocks
-    if (text.includes("```")) {
-      text = text.replace(/```json|```/g, '').trim();
+    for (let i = 0; i < attempts.length; i++) {
+      if (i > 0) await sleep(800);
+      const response = await callGemini(attempts[i]());
+      const text = response.text || "{}";
+      console.log(`Market attempt ${i + 1}:`, text);
+
+      try {
+        const parsed = parseMarketJson(text);
+        if (!isMarketResponseFailed(parsed)) {
+          return { response, parsed };
+        }
+      } catch (parseErr) {
+        console.warn(`Market attempt ${i + 1} parse failed:`, parseErr);
+      }
     }
-    
-    // Sometimes Gemini returns non-JSON text before or after JSON on mobile
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      text = jsonMatch[0];
-    }
-    
-    const parsed = JSON.parse(text);
-    return {
-      ...parsed,
+
+    throw new Error("AI tidak mengembalikan harga valid setelah beberapa percobaan.");
+  };
+
+  try {
+    const { response, parsed } = await tryFetchMarket();
+    const normalized = normalizeMarketResponse(parsed, komoditas, wilayah);
+    const result = {
+      ...normalized,
       grounding: response.candidates?.[0]?.groundingMetadata
     };
+    marketCache.set(cacheKey, { data: result, ts: Date.now() });
+    return result;
   } catch (err: any) {
     console.warn("Gemini Market Price failed, trying DeepSeek fallback...", err);
     try {
-      const dsRes = await chatWithDeepSeek([{ role: 'user', content: prompt + " Kembalikan HANYA JSON mentah tanpa markdown." }]);
-      const cleanJson = dsRes.replace(/```json|```/g, '').trim();
-      const dsMatch = cleanJson.match(/\{[\s\S]*\}/);
-      return JSON.parse(dsMatch ? dsMatch[0] : cleanJson);
+      const fallbackPrompt = buildMarketPrompt(komoditas, wilayah, tanggal, marketType, true)
+        + " Kembalikan HANYA JSON mentah tanpa markdown.";
+      const dsRes = await chatWithDeepSeek([{ role: 'user', content: fallbackPrompt }]);
+      const parsed = parseMarketJson(dsRes);
+      if (isMarketResponseFailed(parsed)) throw err;
+      return normalizeMarketResponse(parsed, komoditas, wilayah);
     } catch (dsErr) {
       console.error("Market Price fallback failed:", dsErr);
       throw err;

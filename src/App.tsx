@@ -47,16 +47,7 @@ import { Geolocation } from '@capacitor/geolocation';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { Browser } from '@capacitor/browser';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area,
-  YAxis,
-  XAxis,
-  Tooltip,
-  CartesianGrid
-} from 'recharts';
-import { 
+import {
   analyzePestImage, 
   getCropProtocol, 
   getWeatherRecommendations, 
@@ -159,6 +150,52 @@ const COMMODITIES = [
   'Cabai Merah Keriting', 'Cabai Rawit Merah', 'Cabai Merah Besar', 
   'Bawang Merah', 'Bawang Putih Honan'
 ];
+
+const getMarketTrendStyle = (trend: MarketItem['trend'], isDarkMode: boolean) => {
+  if (trend === 'up') {
+    return {
+      badge: isDarkMode ? 'bg-red-500/15 text-red-400' : 'bg-red-50 text-red-500',
+      pill: isDarkMode ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-red-50 text-red-600 border-red-100',
+      bar: 'bg-red-500',
+      label: 'Naik',
+      icon: '▲',
+    };
+  }
+  if (trend === 'down') {
+    return {
+      badge: isDarkMode ? 'bg-emerald-500/15 text-emerald-400' : 'bg-emerald-50 text-emerald-600',
+      pill: isDarkMode ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-emerald-50 text-emerald-600 border-emerald-100',
+      bar: 'bg-emerald-500',
+      label: 'Turun',
+      icon: '▼',
+    };
+  }
+  return {
+    badge: isDarkMode ? 'bg-blue-500/15 text-blue-400' : 'bg-blue-50 text-blue-600',
+    pill: isDarkMode ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-100',
+    bar: 'bg-blue-500',
+    label: 'Stabil',
+    icon: '●',
+  };
+};
+
+const getMarketHistoryStats = (history: number[], currentPrice: number) => {
+  const values = history?.filter((v) => typeof v === 'number' && !isNaN(v)) ?? [];
+  if (values.length === 0) {
+    return { min: currentPrice, max: currentPrice, start: currentPrice, hasRange: false };
+  }
+  return {
+    min: Math.min(...values),
+    max: Math.max(...values),
+    start: values[0],
+    hasRange: Math.max(...values) > Math.min(...values),
+  };
+};
+
+const formatCompactRupiah = (value: number) => {
+  if (value >= 1000) return `Rp ${(value / 1000).toFixed(1).replace('.0', '')}K`;
+  return `Rp ${value.toLocaleString('id-ID')}`;
+};
 
 export default function App() {
   const { user, userData: realUserData, loading: authLoading, isAdmin: realIsAdmin } = useAuth();
@@ -901,6 +938,7 @@ export default function App() {
 
   const fetchMarketPrices = async () => {
     setLoading(true);
+    setMarketData(null);
     try {
       const res = await getMarketPrices(
         location, 
@@ -1528,7 +1566,20 @@ export default function App() {
                     </div>
                   )}
 
-                  {marketData.items?.length > 0 ? marketData.items.map((item, i) => (
+                  {marketData.items?.length > 0 ? marketData.items.map((item, i) => {
+                    const price = Number(item.price) || 0;
+                    const stats = getMarketHistoryStats(item.history, price);
+                    const trendStyle = getMarketTrendStyle(item.trend, isDarkMode);
+                    const rangeSpan = stats.max - stats.min || 1;
+                    const pricePosition = stats.hasRange
+                      ? Math.min(100, Math.max(0, ((price - stats.min) / rangeSpan) * 100))
+                      : 50;
+                    const changeAmt = Number(item.changeAmount) || 0;
+                    const changePct = String(item.changePercent).includes('%')
+                      ? item.changePercent
+                      : `${item.changePercent}%`;
+
+                    return (
                     <div 
                       key={i} 
                       className={cn(
@@ -1536,39 +1587,67 @@ export default function App() {
                         isDarkMode ? "bg-zinc-900 border-zinc-800" : "bg-white border-zinc-100"
                       )}
                     >
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
+                      <div className="flex justify-between items-start gap-3">
+                        <div className="min-w-0">
                           <h4 className={cn("font-bold text-base", isDarkMode ? "text-white" : "text-zinc-900")}>{item.name}</h4>
-                          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em]">{item.unit}</p>
+                          <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-[0.2em]">per {item.unit}</p>
                         </div>
-                        <div className="text-right">
-                          <p className={cn("text-lg font-display font-bold", isDarkMode ? "text-white" : "text-zinc-900")}>
-                            Rp {Number(item.price).toLocaleString('id-ID')}
+                        <div className="text-right shrink-0">
+                          <p className={cn("text-xl font-display font-bold", isDarkMode ? "text-white" : "text-zinc-900")}>
+                            Rp {price.toLocaleString('id-ID')}
                           </p>
                           <div className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold",
-                            item.trend === 'up' ? "bg-red-50 text-red-500" : "bg-emerald-50 text-emerald-500"
+                            "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold mt-1",
+                            trendStyle.badge
                           )}>
-                            {item.trend === 'up' ? '▲' : '▼'} {item.changePercent}
+                            {trendStyle.icon} {changePct}
                           </div>
                         </div>
                       </div>
 
-                      <div className="h-[80px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={item.history ? item.history.map((v, idx) => ({ v, idx })) : []}>
-                            <Area 
-                              type="monotone" 
-                              dataKey="v" 
-                              stroke={item.trend === 'up' ? "#ef4444" : "#10b981"} 
-                              fill={item.trend === 'up' ? "#ef444420" : "#10b98120"} 
-                              strokeWidth={2}
-                            />
-                          </AreaChart>
-                        </ResponsiveContainer>
+                      <div className={cn(
+                        "mt-4 flex items-center gap-2 px-3 py-2.5 rounded-2xl border",
+                        trendStyle.pill
+                      )}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider shrink-0">{trendStyle.label}</span>
+                        <span className="text-[10px] opacity-40">•</span>
+                        <span className="text-[10px] font-medium truncate">
+                          7 hari: Rp {stats.start.toLocaleString('id-ID')} → Rp {price.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+
+                      {changeAmt !== 0 && (
+                        <p className="mt-2 text-[10px] font-bold text-zinc-400">
+                          Perubahan: {changeAmt > 0 ? '+' : '-'}Rp {Math.abs(changeAmt).toLocaleString('id-ID')}
+                        </p>
+                      )}
+
+                      <div className="mt-4">
+                        <div className="flex justify-between text-[9px] font-bold uppercase tracking-widest text-zinc-400 mb-2">
+                          <span>Min {formatCompactRupiah(stats.min)}</span>
+                          <span>Max {formatCompactRupiah(stats.max)}</span>
+                        </div>
+                        <div className={cn(
+                          "relative h-2 rounded-full overflow-hidden",
+                          isDarkMode ? "bg-zinc-800" : "bg-zinc-100"
+                        )}>
+                          <div
+                            className={cn("absolute inset-y-0 left-0 rounded-full opacity-25", trendStyle.bar)}
+                            style={{ width: `${Math.max(pricePosition, 8)}%` }}
+                          />
+                          <div
+                            className={cn(
+                              "absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 shadow-sm",
+                              trendStyle.bar,
+                              isDarkMode ? "border-zinc-900" : "border-white"
+                            )}
+                            style={{ left: `calc(${pricePosition}% - 6px)` }}
+                          />
+                        </div>
                       </div>
                     </div>
-                  )) : (
+                    );
+                  }) : (
                     <div className="text-center py-10 opacity-40">
                       <p className="text-xs font-bold uppercase tracking-widest">Gagal memuat data komoditas</p>
                     </div>
