@@ -12,6 +12,11 @@ coverage/
 .env.*.local
 !.env.example
 
+# Firebase client config (gunakan file .example sebagai template)
+firebase-applet-config.json
+google-services.json
+android/app/google-services.json
+
 # Logs
 *.log
 npm-debug.log*

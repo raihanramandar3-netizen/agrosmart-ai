@@ -57,19 +57,28 @@ Aplikasi Dashboard Pertanian Pintar berbasis Full-Stack (React, Firebase, & Capa
 ```bash
 git clone https://github.com/raihanramandar3-netizen/agrosmart-ai.git
 cd agrosmart-ai
-cp .env.example .env        # Windows: copy .env.example .env
+
+# Setup config (Windows: ganti cp → copy)
+cp .env.example .env
+cp firebase-applet-config.example.json firebase-applet-config.json
+cp google-services.example.json google-services.json
+cp google-services.json android/app/google-services.json
+
+# Isi firebase-applet-config.json & google-services.json dari Firebase Console
+# Isi API key AI di .env
+
 npm install
 npm run dev
 ```
 
 Buka **http://localhost:3000** → klik **"Masuk sebagai Tamu (Mode Demo)"** untuk demo tanpa login.
 
-| Yang sudah tersedia di repo | Perlu diisi manual |
-|-----------------------------|-------------------|
-| `firebase-applet-config.json` | API key di `.env` (lihat `.env.example`) |
-| `google-services.json` | — |
-| `firestore.rules` | — |
-| Folder `android/` (sudah ada) | — |
+| File template di repo | Copy jadi | Isi dari |
+|----------------------|-----------|----------|
+| `.env.example` | `.env` | Gemini / DeepSeek / Weather API key |
+| `firebase-applet-config.example.json` | `firebase-applet-config.json` | Firebase Console → Web App config |
+| `google-services.example.json` | `google-services.json` + `android/app/` | Firebase Console → Android App |
+| `firestore.rules` | (langsung pakai) | Publish ke Firebase Console |
 
 **Minimal `.env` untuk fitur AI:**
 ```
@@ -97,7 +106,8 @@ Tanpa `.env`, UI tetap bisa dibuka via **Mode Demo**, tapi fitur AI butuh minima
     - **Buat Project:** Masuk ke [Firebase Console](https://console.firebase.google.com/), buat project baru.
     - **Aktifkan Firestore:** Klik 'Firestore Database' > 'Create Database'.
     - **Aktifkan Auth:** Klik 'Authentication' > 'Get Started' > Pilih 'Google' sebagai Sign-in provider.
-    - **Copy Config:** Di Project Settings, scroll ke bawah ke 'Your Apps', tambah Web App, lalu copy isi objek `firebaseConfig` ke dalam file `firebase-applet-config.json` di root folder aplikasi ini.
+    - **Copy Config:** Salin `firebase-applet-config.example.json` → `firebase-applet-config.json`, lalu isi dari Firebase Console → Project Settings → Web App.
+    - **Android:** Salin `google-services.example.json` → `google-services.json` dan `android/app/google-services.json` (download asli dari Firebase Console → Android App).
     - **Copy Rules (Keamanan):** Buka file `firestore.rules` di folder ini, copy SEMUA isinya, lalu buka menu **Firestore Database > Rules** di Firebase Console, hapus isi defaultnya, dan paste kode tadi di sana. Klik **Publish**.
 
 3.  **Setup API Keys (Otak Aplikasi):**
@@ -190,15 +200,15 @@ agrosmart-ai/
 ├── public/                     # Asset statis (logo, icon)
 ├── android/                    # Project Android (Capacitor)
 ├── firestore.rules             # Security rules Firebase
-├── firebase-applet-config.json # Config Firebase Web
-├── google-services.json        # Config Firebase Android
+├── firebase-applet-config.example.json # Template config Firebase Web
+├── google-services.example.json        # Template config Firebase Android
 ├── capacitor.config.ts         # Config Capacitor
 ├── dokumentasi.md              # Dokumentasi struktur & user flow
 ├── .env.example                # Template API key (copy → .env)
 └── README.md                   # Panduan ini
 ```
 
-**Tidak di-commit:** `node_modules/`, `dist/`, `.env`, `android/app/build/`, `*.apk`
+**Tidak di-commit:** `node_modules/`, `dist/`, `.env`, `firebase-applet-config.json`, `google-services.json`, `android/app/build/`, `*.apk`
 
 ---
 
